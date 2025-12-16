@@ -193,6 +193,7 @@ pub async fn init_cache(client: &BeatSaverClient) -> MapList {
 }
 
 // [TODO] better return type
+// [TODO] validation on this
 pub async fn write_cache(map_list: &MapList, path: &str) -> bool {
     let buf = Vec::new();
 
