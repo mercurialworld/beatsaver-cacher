@@ -1,3 +1,5 @@
+pub mod protogen;
+
 use std::{
     collections::HashMap,
     fs::{self},
@@ -18,7 +20,15 @@ use prost::Message;
 use std::io::prelude::*;
 use tokio::time::sleep;
 
-use crate::mapdata::mapdata::{Difficulty, MapList, MapMetadata, Ranked, RankedValue, Votes};
+use crate::mapdata::{Difficulty, MapList, MapMetadata, Ranked, RankedValue, Votes};
+use crate::cacher::protogen::{
+    generate_protobuf_curator,
+    generate_protobuf_diff_mods,
+    generate_protobuf_diffs,
+    generate_protobuf_map_mods,
+    generate_protobuf_ranked_values, 
+    generate_protobuf_votes
+}
 
 #[derive(Default)]
 struct MapMods {
@@ -84,71 +94,6 @@ fn get_map_mods(map_version: &MapVersion) -> MapMods {
     }
 
     mods
-}
-
-fn generate_protobuf_ranked_values(diff: &MapDifficulty) -> Ranked {
-    // autogen moment. i kinda don't want to deal with renaming
-    Ranked {
-        score_saber: RankedValue {
-            is_ranked: diff.ss_stars.is_some(),
-            stars: diff.ss_stars.unwrap_or(0.0) as f32,
-        },
-        beat_leader: RankedValue {
-            is_ranked: diff.bl_stars.is_some(),
-            stars: diff.bl_stars.unwrap_or(0.0) as f32,
-        },
-    }
-}
-
-fn generate_protobuf_map_mods(map_version: &MapVersion) -> u32 {
-    let map_mods = get_map_mods(map_version);
-
-    (map_mods.cinema as u32)
-        + ((map_mods.mapping_extensions as u32) << 1)
-        + ((map_mods.chroma as u32) << 2)
-        + ((map_mods.noodle_extensions as u32) << 3)
-        + ((map_mods.vivify as u32) << 4)
-}
-
-fn generate_protobuf_diff_mods(diff: &MapDifficulty) -> u32 {
-    (diff.cinema as u32)
-        + ((diff.me as u32) << 1)
-        + ((diff.chroma as u32) << 2)
-        + ((diff.ne as u32) << 3)
-        + ((diff.vivify as u32) << 4)
-}
-
-fn generate_protobuf_diffs(map_version: &MapVersion) -> Vec<Difficulty> {
-    let mut diffs: Vec<Difficulty> = Vec::new();
-
-    for diff in &map_version.diffs {
-        diffs.push(Difficulty {
-            njs: diff.njs as f32,
-            notes: u32::try_from(diff.notes).unwrap_or(0),
-            characteristic_name: diff.characteristic.name().to_string(),
-            difficulty_name: diff.difficulty.clone(),
-            mods: generate_protobuf_diff_mods(diff),
-            environment_name: diff.environment.as_ref().unwrap().name().to_string(),
-            ranked: generate_protobuf_ranked_values(diff),
-        });
-    }
-
-    diffs
-}
-
-fn generate_protobuf_curator(map: &Map) -> Option<String> {
-    if map.curator.is_some() {
-        return Some(map.curator.as_ref().unwrap().name.clone());
-    }
-
-    None
-}
-
-fn generate_protobuf_votes(up: i32, down: i32) -> Votes {
-    Votes {
-        up: u32::try_from(up).unwrap_or(0),
-        down: u32::try_from(down).unwrap_or(0),
-    }
 }
 
 pub fn cache_map_data(map: &Map) -> Option<MapMetadata> {
