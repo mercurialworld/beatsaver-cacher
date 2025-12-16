@@ -12,7 +12,10 @@ use beatsaver_api::{
         map::{Map, MapDetail, MapDifficulty, MapVersion},
     },
 };
+use flate2::{Compression, write::GzEncoder};
+use log::{debug, error, info};
 use prost::Message;
+use std::io::prelude::*;
 use tokio::time::sleep;
 
 use crate::mapdata::mapdata::{Difficulty, MapList, MapMetadata, Ranked, RankedValue, Votes};
@@ -29,24 +32,24 @@ struct MapMods {
 fn should_cache_map(map: &Map) -> bool {
     // not published yet
     if map.last_published_at.is_none() {
-        println!("{} hasn't been published before, ignoring", map.id);
+        info!("{} hasn't been published before, ignoring", map.id);
         return false;
     }
 
     // version of map hasn't been published
     if map.versions[0].state != MapState::Published {
-        println!("Version of {} is not published, ignoring", map.id);
+        info!("Version of {} is not published, ignoring", map.id);
         return false;
     }
 
     // AI-generated (map or song)
     if map.declared_ai != AIDeclarationType::None {
-        println!("{} has been declared as AI-generated, ignoring", map.id);
+        info!("{} has been declared as AI-generated, ignoring", map.id);
         return false;
     }
 
     if map.automapper {
-        println!("{} is automapped, ignoring", map.id);
+        info!("{} is automapped, ignoring", map.id);
         return false;
     }
 
@@ -133,6 +136,14 @@ fn generate_protobuf_diffs(map_version: &MapVersion) -> Vec<Difficulty> {
     diffs
 }
 
+fn generate_protobuf_curator(map: &Map) -> Option<String> {
+    if map.curator.is_some() {
+        return Some(map.curator.as_ref().unwrap().name.clone());
+    }
+
+    None
+}
+
 fn generate_protobuf_votes(up: i32, down: i32) -> Votes {
     Votes {
         up: u32::try_from(up).unwrap_or(0),
@@ -142,11 +153,12 @@ fn generate_protobuf_votes(up: i32, down: i32) -> Votes {
 
 pub fn cache_map_data(map: &Map) -> Option<MapMetadata> {
     if !should_cache_map(map) {
+        debug!("Not caching {:?}", map.id);
         return None;
     }
 
     // now we make the map data
-    let map = MapMetadata {
+    let cached_map = MapMetadata {
         key: u32::from_str_radix(&map.id, 16).unwrap(),
         hash: map.versions[0].hash.clone(),
         song_name: map.metadata.song_name.clone(),
@@ -159,12 +171,12 @@ pub fn cache_map_data(map: &Map) -> Option<MapMetadata> {
             .unwrap(),
         last_updated: u32::try_from(map.updated_at?.timestamp()).ok().unwrap(),
         mods: generate_protobuf_map_mods(&map.versions[0]),
-        curator_name: Some(map.curator.clone()?.name),
+        curator_name: generate_protobuf_curator(map),
         votes: generate_protobuf_votes(map.stats.upvotes, map.stats.downvotes),
         difficulties: generate_protobuf_diffs(&map.versions[0]),
     };
 
-    Some(map)
+    Some(cached_map)
 }
 
 pub async fn init_cache(client: &BeatSaverClient) -> MapList {
@@ -187,26 +199,28 @@ pub async fn init_cache(client: &BeatSaverClient) -> MapList {
 
         match res {
             Ok(data) => {
+                debug!("Obtained {} maps", data.docs.len());
+
                 if data.docs.is_empty() {
-                    println!("[Scraper] No maps left!");
+                    info!("[Scraper] No maps left!");
                     caching = false;
                 } else {
                     for map_data in data.docs {
                         let map_key = map_data.id.clone();
 
                         if let Some(cached_map) = cache_map_data(&map_data) {
-                            println!("On {map_key}");
-
                             map_list.map_metadata.insert(map_key.clone(), cached_map);
                             last_map = Some(map_data);
                         }
                     }
 
-                    println!("[Scraper] Cached {} maps", map_list.map_metadata.len(),);
+                    info!("[Scraper] Cached {} maps", map_list.map_metadata.len(),);
 
                     if let Some(ref map) = last_map {
-                        println!("Currently at {}", map.id);
+                        debug!("Currently at {}", map.id);
                         current_time = map.uploaded;
+
+                        debug!("current_time set to {}", current_time);
                     }
 
                     sleep(Duration::from_millis(100)).await;
@@ -214,16 +228,16 @@ pub async fn init_cache(client: &BeatSaverClient) -> MapList {
             }
             Err(err) => match err {
                 ClientError::ReqwestError(reqwest_err) => {
-                    println!(
+                    error!(
                         "Status not 200 (is {:?}), waiting a bit",
                         reqwest_err.status()
                     );
-                    println!("{:?}", reqwest_err);
+                    error!("{:?}", reqwest_err);
                     sleep(Duration::from_millis(3000)).await;
                     continue;
                 }
                 ClientError::SerdeError(serde_err) => {
-                    eprintln!("ERROR: {}", serde_err);
+                    error!("ERROR: {}", serde_err);
                 }
                 _ => unreachable!(""),
             },
@@ -235,23 +249,19 @@ pub async fn init_cache(client: &BeatSaverClient) -> MapList {
 
 // [TODO] better return type
 pub async fn write_cache(map_list: &MapList, path: &str) -> bool {
-    let mut buf = Vec::new();
-    match map_list.encode(&mut buf) {
-        Ok(_) => {
-            println!("Serialized to {} bytes", buf.len());
-        }
-        Err(e) => {
-            println!("{:?}", e);
-            return false;
-        }
-    }
+    let buf = Vec::new();
 
-    match fs::write(path, &buf) {
+    let mut gz = GzEncoder::new(buf, Compression::default());
+    let _ = gz.write_all(&map_list.encode_to_vec());
+
+    let compressed = gz.finish().unwrap();
+
+    match fs::write(path, compressed) {
         Ok(_) => {
-            println!("Saved to {}", path);
+            info!("Saved to {}", path);
         }
         Err(e) => {
-            println!("{:?}", e);
+            error!("{:?}", e);
             return false;
         }
     }
