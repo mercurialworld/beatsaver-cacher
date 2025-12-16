@@ -1,0 +1,18 @@
+[package]
+name = "drm-beatsaver-cacher"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+beatsaver-api = { git = "https://github.com/mercurialworld/beatsaver-api", rev = "2896ab15756e19585bba55a045b4bc13a6cdf482" }
+chrono = { version = "0.4.42", features = ["serde"] }
+prost = "0.14.1"
+protobuf = "3.7.2"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+serde_repr = "0.1.20"
+tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread", "time"] }
+
+[build-dependencies]
+prost-build = "0.14.1"

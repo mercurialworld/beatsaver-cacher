@@ -1,0 +1,47 @@
+// mapData.proto
+package CachedBeatSaverData;
+
+message MapList {
+	map<string, MapMetadata> mapMetadata = 1;
+}
+
+message Votes {
+	required uint32 up = 1;
+	required uint32 down = 2;
+}
+
+message RankedValue {
+	required bool isRanked = 1;
+	required float stars = 2;
+}
+
+message Ranked {
+	required RankedValue ScoreSaber = 1;
+	required RankedValue BeatLeader = 2;
+}
+
+message Difficulty {
+	required float njs = 1;
+	required uint32 notes = 2;
+	required string characteristicName = 3;
+	required string difficultyName = 4;
+	required uint32 mods = 5;
+	required string environmentName = 6;
+	required Ranked ranked = 7;
+}
+
+message MapMetadata {
+	required uint32 key = 1;
+	required string hash = 2;
+	optional string songName = 3;
+	optional string songSubName = 4;
+	optional string songAuthorName = 5;
+	optional string levelAuthorName = 6;
+	required uint32 duration = 7;
+	required uint32 uploaded = 8;
+	required uint32 lastUpdated = 9;
+	required uint32 mods = 10;
+	optional string curatorName = 11;
+	required Votes votes = 12;
+	repeated Difficulty difficulties = 13;
+}
