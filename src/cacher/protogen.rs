@@ -1,5 +1,12 @@
 // PROTObuf GENerator. get it?
 
+use beatsaver_api::models::map::{Map, MapDifficulty, MapVersion};
+
+use crate::{
+    cacher::get_map_mods,
+    mapdata::{Difficulty, Ranked, RankedValue, Votes},
+};
+
 /// Converts the BeatSaver ranked values to a DumbRequestManager-readable format.
 pub(crate) fn generate_protobuf_ranked_values(diff: &MapDifficulty) -> Ranked {
     // autogen moment. i kinda don't want to deal with renaming

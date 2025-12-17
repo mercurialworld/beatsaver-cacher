@@ -11,7 +11,7 @@ use beatsaver_api::{
     client::{BeatSaverClient, ClientError},
     models::{
         enums::{AIDeclarationType, MapState},
-        map::{Map, MapDetail, MapDifficulty, MapVersion},
+        map::{Map, MapDetail, MapVersion},
     },
 };
 use flate2::{Compression, write::GzEncoder};
@@ -20,15 +20,11 @@ use prost::Message;
 use std::io::prelude::*;
 use tokio::time::sleep;
 
-use crate::mapdata::{Difficulty, MapList, MapMetadata, Ranked, RankedValue, Votes};
 use crate::cacher::protogen::{
-    generate_protobuf_curator,
-    generate_protobuf_diff_mods,
-    generate_protobuf_diffs,
-    generate_protobuf_map_mods,
-    generate_protobuf_ranked_values, 
-    generate_protobuf_votes
-}
+    generate_protobuf_curator, generate_protobuf_diffs, generate_protobuf_map_mods,
+    generate_protobuf_votes,
+};
+use crate::mapdata::{MapList, MapMetadata};
 
 #[derive(Default)]
 struct MapMods {
